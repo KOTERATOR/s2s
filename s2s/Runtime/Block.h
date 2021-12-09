@@ -7,50 +7,108 @@
 
 #include <map>
 #include <string>
-#include "../Types/Type.h"
+#include <vector>
+#include "RuntimeException.h"
 
+class Type;
 class Function;
+class ClassType;
 
 class Block
 {
+protected:
+    std::vector<Block*> children;
 public:
+    enum AccessModifiers
+    {
+        Public,
+        Private,
+        Protected,
+        Default
+    };
+
+    struct Modifiers
+    {
+        AccessModifiers accessModifier = AccessModifiers::Default;
+        bool isConst = false;
+        bool isStatic = false;
+    };
+
+    bool isTypeBlock = false;
     Block *parent = nullptr;
-    std::map<std::string, Type *> variables;
-    std::map<std::string, Function *> functions;
+    std::map<std::string, Type *> members;
+    std::map<std::string, Modifiers> modifiers;
 
-    Block(Block *parent = nullptr) : parent(parent) {}
-
-    Type *getVariable(const std::string& name)
+    Block(Block *parent = nullptr) : parent(parent)
     {
-        if (variables.find(name) != variables.end())
-            return variables[name];
-        else if (parent != nullptr)
-            return parent->getVariable(name);
+        if (parent != nullptr)
+        {
+            parent->children.emplace_back(this);
+        }
+    }
+
+    bool isChild(Block *block)
+    {
+        for (size_t i = 0; i < children.size(); i++)
+        {
+            if (children[i] == block)
+                return true;
+            else if (children[i]->isChild(block))
+                return true;
+        }
+        return false;
+    }
+
+    virtual Type *get(Block *from, const std::string &name, bool allowParentScope=true)
+    {
+        if (members.find(name) != members.end()) {
+            if (modifiers.find(name) != modifiers.end())
+            {
+                auto mods = modifiers[name];
+                if (mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected && !(isChild(from) && from == this))
+                    throw RuntimeException("member \"" + name + "\" is private/protected within this context");
+            }
+            return members[name];
+        }
+        else if (parent != nullptr && allowParentScope)
+            return parent->get(from, name);
         else
-            return nullptr; // maybe throw ???
+            throw RuntimeException("member \"" + name + "\" not found in this scope");
     }
 
-    void addVariable(const std::string &name, Type* value)
+    virtual void addMember(Block *from, const std::string &name, Type *member)
     {
-        variables[name] = value;
-    }
-
-    Function *getFunction(const std::string& name)
-    {
-        if (functions.find(name) != functions.end())
-            return functions[name];
-        else if (parent != nullptr)
-            return parent->getFunction(name);
+        if (modifiers.find(name) != modifiers.end())
+        {
+            auto mods = modifiers[name];
+            if (mods.isConst)
+                throw RuntimeException("cannot assign to const member \"" + name + "\"");
+            else if (mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected && !(isChild(from) || from == this))
+                throw RuntimeException("member \"" + name + "\" is private/protected within this context");
+        }
         else
-            return nullptr;
+        {
+            modifiers[name] = Modifiers();
+        }
+
+        members[name] = member;
     }
 
-    void addFunction(const std::string &name, Function *f)
+    virtual void addMember(Block *from, const std::string &name, Modifiers mods, Type *member)
     {
-        functions[name] = f;
-    }
+        if (modifiers.find(name) != modifiers.end())
+        {
+            throw RuntimeException("cannot specify modifiers for member \"" + name + "\": modifiers already set");
+            auto mods = modifiers[name];
+            if (mods.isConst)
+                throw RuntimeException("cannot assign to const member \"" + name + "\"");
+            if (mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected && !isChild(from))
+                throw RuntimeException("member \"" + name + "\" is private within this context");
+        }
 
-    void addFunction(Function *f);
+        members[name] = member;
+        modifiers[name] = mods;
+    }
 };
 
 

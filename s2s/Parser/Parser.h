@@ -10,302 +10,50 @@
 #include "../Lexer/Token.h"
 #include "../Lexer/LexerLine.h"
 #include "LinesReader.h"
+#include "Nodes/ParserNode.h"
+#include "Nodes/Nodes.h"
 #include <iostream>
 #include <utility>
 
-class ParserNode {
-public:
-    enum NodeType {
-        Function,
-        FunctionCall,
-        Task,
-        TaskCall,
-        If,
-        Operation,
-        CompareOperation,
-        BitOperation,
-        Parentheses,
-        Symbol,
-        Value,
-        Array,
-        Assignment,
-        Return
-    };
-
-    NodeType type;
-
-    ParserNode(NodeType type) : type(type) {
-    }
-
-    virtual ~ParserNode() {
-    }
-
-    virtual std::string toString() {
-        return std::string("ParserNode::toString");
-    }
-};
-
-class SymbolNode : public ParserNode {
-public:
-    std::string name;
-
-    SymbolNode(std::string name) : ParserNode(NodeType::Symbol) {
-        this->name = name;
-    }
-
-    std::string toString() override {
-        return std::string("SymbolNode: name=") + name;
-    }
-};
-
-class ValueNode : public ParserNode {
-public:
-    Token value;
-
-    ValueNode(Token value) : ParserNode(NodeType::Value) {
-        this->value = value;
-    }
-
-    std::string toString() override {
-        return std::string("ValueNode: value=") + value.toString();
-    }
-};
-
-class FunctionNode : public ParserNode {
-public:
-    std::string name;
-    std::vector<ParserNode *> args;
-    std::vector<ParserNode *> body;
-
-    FunctionNode(std::string name, std::vector<ParserNode *> args, std::vector<ParserNode *> body) : ParserNode(
-            NodeType::Function) {
-        this->name = std::move(name);
-        this->args = std::move(args);
-        this->body = std::move(body);
-    }
-
-    std::string toString() override {
-        std::string argsStr = "[";
-        for (auto &a: args) {
-            argsStr += a->toString() + ", ";
-        }
-        argsStr += "]";
-
-        std::string bodyStr = "[";
-        for (auto &a: body) {
-            bodyStr += a->toString() + ", ";
-        }
-        bodyStr += "]";
-
-        return std::string("Function ") + name + std::string(" args=") + argsStr + std::string(" body=") + bodyStr;
-    }
-};
-
-class FunctionCallNode : public ParserNode {
-public:
-    std::string functionName;
-    std::vector<ParserNode *> args;
-
-    FunctionCallNode(std::string functionName, std::vector<ParserNode *> args) : ParserNode(NodeType::FunctionCall) {
-        this->functionName = std::move(functionName);
-        this->args = std::move(args);
-    }
-
-    std::string toString() override {
-        std::string argsStr = "[";
-        for (int i = 0; i < args.size(); i++) {
-            argsStr += args[i]->toString();
-            if (i < args.size() - 1)
-                argsStr += ", ";
-        }
-        argsStr += "]";
-        return std::string("FunctionCallNode: name=") + functionName + std::string(" args=") + argsStr;
-    }
-};
-
-class IfNode : public ParserNode {
-public:
-    ParserNode *condition;
-    std::vector<ParserNode *> body;
-    std::vector<IfNode *> elseIfs;
-    std::vector<ParserNode *> elseBody;
-
-    IfNode(ParserNode *condition, std::vector<ParserNode *> body) : ParserNode(NodeType::If), condition(condition),
-                                                                    body(std::move(body)) {}
-
-    IfNode(ParserNode *condition, std::vector<ParserNode *> body, std::vector<ParserNode *> elseBody) :
-            ParserNode(NodeType::If), condition(condition), body(std::move(body)), elseBody(std::move(elseBody)) {}
-
-    IfNode(ParserNode *condition, std::vector<ParserNode *> body, std::vector<IfNode *> elseIfs,
-           std::vector<ParserNode *> elseBody) : ParserNode(NodeType::If), condition(condition), body(std::move(body)),
-                                                 elseIfs(std::move(elseIfs)), elseBody(std::move(elseBody)) {}
-};
-
-class ReturnNode : public ParserNode {
-public:
-    ParserNode *what;
-
-    ReturnNode(ParserNode *what) : ParserNode(NodeType::Return) {
-        this->what = what;
-    }
-
-    std::string toString() override {
-        return std::string("Return Node: ") + what->toString();
-    }
-};
-
-class AssignmentNode : public ParserNode {
-public:
-    SymbolNode *to;
-    ParserNode *what;
-
-    AssignmentNode(SymbolNode *to, ParserNode *what) : ParserNode(NodeType::Assignment) {
-        this->to = to;
-        this->what = what;
-    }
-
-    std::string toString() override {
-        return std::string("AssignmentNode:\n\tto: ") + to->toString() + std::string("\n\twhat: ") + what->toString();
-    }
-};
-
-class OperationNode : public ParserNode {
-public:
-    std::string op;
-    ParserNode *op1, *op2;
-
-    OperationNode(std::string op, ParserNode *op1, ParserNode *op2) : ParserNode(NodeType::Operation) {
-        this->op = std::move(op);
-        this->op1 = op1;
-        this->op2 = op2;
-    }
-
-    OperationNode *insert(const std::string &nop, ParserNode *nop1) {
-        if (op == "*" || op == "/") {
-            if (nop == "+" || nop == "-") {
-                return new OperationNode(nop, nop1, this);
-            } else {
-                if (this->op1->type == NodeType::Operation) {
-                    this->op1 = ((OperationNode *) this->op1)->insert(nop, nop1);
-                } else {
-                    auto *n = new OperationNode(nop, nop1, this->op1);
-                    this->op1 = n;
-                }
-
-                return this;
-            }
-        } else {
-            if (nop == "*" || nop == "/") {
-                if (this->op1->type == NodeType::Operation) {
-                    this->op1 = ((OperationNode *) this->op1)->insert(nop, nop1);
-                } else {
-                    auto *n = new OperationNode(nop, nop1, this->op1);
-                    this->op1 = n;
-                }
-                return this;
-            } else {
-                if (this->op1->type == NodeType::Operation) {
-                    this->op1 = ((OperationNode *) this->op1)->insert(nop, nop1);
-                } else {
-                    auto *n = new OperationNode(nop, nop1, this->op1);
-                    this->op1 = n;
-                }
-                return this;
-            }
-        }
-    }
-
-    std::string toString() override {
-        return std::string("OperationNode: op = ") + op + std::string("{ op1: ") + op1->toString() +
-               std::string("} { op2: ") + op2->toString() + std::string(" }");
-    }
-};
-
-class CompareNode : public ParserNode {
-public:
-    enum CompareOperation {
-        EQUALS,
-        NOT_EQUALS,
-        GT,
-        GTE,
-        LT,
-        LTE
-    };
-
-    CompareOperation op;
-    ParserNode *op1;
-    ParserNode *op2;
-
-    CompareNode(CompareOperation op, ParserNode *op1, ParserNode *op2) : ParserNode(NodeType::CompareOperation) {
-        this->op = op;
-        this->op1 = op1;
-        this->op2 = op2;
-    }
-
-    std::string toString() override {
-        return std::string("CompareNode: op = ") + std::to_string((int) op) + std::string(" op1: ") + op1->toString() +
-               std::string(" op2: ") + op2->toString();
-    }
-};
-
-class ParenthesesNode : public ParserNode {
-public:
-    ParserNode *inner;
-
-    ParenthesesNode(ParserNode *inner) : ParserNode(NodeType::Parentheses) {
-        this->inner = inner;
-    }
-
-    std::string toString() override {
-        return std::string("ParenthesesNode: inner = ") + inner->toString();
-    }
-};
-
-class ArrayNode : public ParserNode {
-public:
-    std::vector<ParserNode *> elements;
-
-    ArrayNode(std::vector<ParserNode *> elements) : ParserNode(NodeType::Array) {
-        this->elements = std::move(elements);
-    }
-
-    std::string toString() override {
-        std::string result = std::string("ArrayNode: elements=[");
-        for (int i = 0; i < elements.size(); i++)
-            result += elements[i]->toString();
-        result += "]";
-        return result;
-    }
-};
 
 class Parser {
 private:
     LinesReader lines;
 
-    ParserNode *parseSymbol(const std::string& symbol) {
+    bool isModifier(const std::string &s) {
+        return s == "private" || s == "public" || s == "protected" || s == "static" || s == "const";
+    }
+
+    ParserNode *parseSymbol(const std::string &symbol) {
         if (symbol == "fun") {
             Token nameToken = *lines.current()->next();
             if (nameToken.type != Token::Symbol) {
-                // throw
+                // TODO: throw
             }
             std::string name = nameToken.value;
 
             Token parenthesisToken = *lines.current()->next();
             if (parenthesisToken.type != Token::SpecialChar && parenthesisToken.value != "(") {
-                // throw
+                // TODO: throw
             }
 
             auto args = nextSequence(",", ")");
             std::vector<ParserNode *> body = parseBody(lines.current()->getLevel());
             return new FunctionNode(name, args, body);
+        } else if (symbol == "class") {
+            return parseClass();
         } else if (symbol == "return") {
             return new ReturnNode(next(nullptr));
-        }
-        else if (symbol == "if")
-        {
+        } else if (symbol == "if") {
             return parseIf();
-        }
-        else {
+        } else if (isModifier(symbol)) {
+            std::vector<std::string> modifiers;
+            modifiers.emplace_back(symbol);
+            while (lines.current()->lookNext() != nullptr && isModifier(lines.current()->lookNext()->value)) {
+                modifiers.emplace_back(lines.current()->next()->value);
+            }
+            return new ModifiersNode(modifiers);
+        } else {
             return new SymbolNode(symbol);
         }
     }
@@ -315,8 +63,15 @@ private:
         return new FunctionCallNode(name, args);
     }
 
-    IfNode *parseIf()
-    {
+    ClassNode *parseClass() {
+        Token nameToken = *lines.current()->next();
+        if (nameToken.type != Token::Symbol) {
+            // TODO: throw
+        }
+        return new ClassNode(nameToken.value, parseBody(lines.current()->getLevel()));
+    }
+
+    IfNode *parseIf() {
         auto l = lines.current();
         auto condition = next(nullptr);
         auto body = parseBody(l->getLevel());
@@ -324,38 +79,32 @@ private:
         l = lines.next();
         bool hasElse = false;
 
-        std::vector<IfNode*> elseIfs;
-        std::vector<ParserNode*> elseBody;
+        std::vector<IfNode *> elseIfs;
+        std::vector<ParserNode *> elseBody;
         while (l != nullptr) {
             auto t = l->next();
 
             if (t != nullptr) {
                 if (t->value == "else") {
-                    if (hasElse)
-                    {
+                    if (hasElse) {
                         // throw
                         //throw ParserException("second else");
                     }
                     hasElse = true;
                     elseBody = parseBody(l->getLevel());
                 } else if (t->value == "elif") {
-                    if (hasElse)
-                    {
+                    if (hasElse) {
                         // throw
                         //throw ParserException("elif after else");
                     }
                     auto elifCond = next(nullptr);
                     auto elifBody = parseBody(l->getLevel());
                     elseIfs.emplace_back(new IfNode(elifCond, elifBody));
-                }
-                else
-                {
+                } else {
                     lines.prev();
                     break;
                 }
-            }
-            else
-            {
+            } else {
                 lines.prev();
                 break;
             }
@@ -381,8 +130,9 @@ private:
     std::vector<ParserNode *> nextSequence(std::string sep, std::string end) {
         std::vector<ParserNode *> seq;
 
-        for (int i = lines.current()->getIndex(); i < lines.current()->size(); i++) {
+        for (size_t i = lines.current()->getIndex(); i < lines.current()->size(); i++) {
             Token *t = lines.current()->lookNext();
+            std::cout << "t->value = \"" << t->value << "\"" << std::endl;
             if (t->value == sep) {
                 lines.current()->next();
             } else if (t->value == end) {
@@ -441,8 +191,11 @@ private:
                 if (prev->type != ParserNode::NodeType::Symbol) {
                 }
                 ParserNode *nextNode = next(nullptr);
-                return next(new AssignmentNode((SymbolNode *) prev, nextNode));
+                return next(new AssignmentNode(prev, nextNode));
             } else if (value == "[") {
+                if (prev != nullptr) {
+                    return next(new GetNode(prev, nextTo("]")));
+                }
                 return next(new ArrayNode(nextSequence(",", "]")));
             } else if (value == "(") {
                 if (prev != nullptr && prev->type == ParserNode::Symbol) {
@@ -450,6 +203,13 @@ private:
                     return next(parseFunctionCall(((SymbolNode *) prev)->name));
                 }
                 return next(new ParenthesesNode(nextTo(")")));
+            } else if (value == ".") {
+                // member access
+                if (prev != nullptr) {
+                    return new MemberAccessNode(prev, next(nullptr));
+                } else {
+                    // TODO: throw
+                }
             }
         } else if (type == Token::Operation) {
             ParserNode *nextNode = next(nullptr);
@@ -480,6 +240,27 @@ private:
             else if (value == ">=")
                 op = CompareNode::GTE;
             return next(new CompareNode(op, prev, next(nullptr)));
+        } else if (type == Token::Symbol) {
+            auto nextNode = parseSymbol(value);
+            if (prev->type == ParserNode::Modifiers) {
+                auto mods = dynamic_cast<ModifiersNode *>(prev);
+                if (nextNode->type == ParserNode::Class) {
+                    dynamic_cast<ClassNode *>(nextNode)->modifiers = mods;
+                } else if (nextNode->type == ParserNode::Function) {
+                    dynamic_cast<FunctionNode *>(nextNode)->modifiers = mods;
+                } else if (nextNode->type == ParserNode::Symbol) {
+                    dynamic_cast<SymbolNode *>(nextNode)->modifiers = mods;
+                } else {
+                    std::cout << "Unexpected modifiers or symbol" << std::endl;
+                    // TODO: throw
+                }
+                return next(nextNode);
+            }
+            else {
+                std::cout << "Awaited modifiers" << std::endl;
+                // TODO: throw
+            }
+
         }
         lines.current()->prev();
         return prev;

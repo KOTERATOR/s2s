@@ -4,8 +4,5 @@
 
 #include "Block.h"
 
-#include "../Types/Function.h"
+#include "Runtime/Builtin/Types/Function.h"
 
-void Block::addFunction(Function *f) {
-    functions[f->name] = f;
-}

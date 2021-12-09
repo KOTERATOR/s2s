@@ -4,6 +4,7 @@
 #include "s2s/Lexer/Lexer.h"
 #include "s2s/Parser/Parser.h"
 #include "s2s/Runtime/Runtime.h"
+#include "s2s/Parser/Nodes/ParserNode.h"
 
 int main(int argc, char **argv)
 {
@@ -61,7 +62,13 @@ int main(int argc, char **argv)
                 }
             }
             Runtime r;
-            r.run(nodes);
+            try {
+                r.run(nodes);
+            }
+            catch (RuntimeException &e)
+            {
+                std::cout << e.what() << std::endl;
+            }
         }
         else
         {
@@ -88,7 +95,7 @@ int main(int argc, char **argv)
                 }
                 Parser p({lexerLine});
                 std::vector<ParserNode *> n = p.parse();
-                //std::cout << n->toString() << std::endl;
+                std::cout << n[0]->toString() << std::endl;
                 Type *result = r.run(n[0]);
                 std::cout << (result == nullptr ? "null" : result->toString()) << std::endl;
             }

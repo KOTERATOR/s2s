@@ -29,6 +29,7 @@ public:
         {
             return &elements[index];
         }
+        return nullptr;
     }
 
     T *next()
