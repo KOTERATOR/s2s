@@ -29,7 +29,8 @@ public:
         Assignment,
         Return,
         MemberAccess,
-        Modifiers
+        Modifiers,
+        ModuleImport
     };
 
     NodeType type;
@@ -41,7 +42,7 @@ public:
     }
 
     virtual std::string toString() {
-        return std::string("ParserNode::toString");
+        return std::string("ParserNode::digestToString");
     }
 };
 

@@ -12,7 +12,7 @@ class TypeFunction : public Function
 public:
     TypeFunction(const std::string &name) : Function(name) {}
 
-    Type *invoke(Runtime *r, std::vector<Type *> args) override
+    Type *invoke(Runtime *r, Args args, KWArgs kwargs, Type *handle) override
     {
         if (args.size() > 1)
             throw RuntimeException("can't call " + name + " with more than 1 argument");

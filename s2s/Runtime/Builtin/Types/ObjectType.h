@@ -8,19 +8,19 @@
 #include "ClassType.h"
 
 class ObjectType : public Type {
-private:
-    ClassType *type;
 public:
     ObjectType(ClassType *type) : Type(TypeEnum::Custom, (Block*)type)
     {
         this->type = type;
     }
 
-    Type *get(Block *from, const std::string &name, bool allowParentScope) override {
+    Type *&get(Block *from, const std::string &name, bool allowParentScope) override {
         if (members.find(name) != members.end())
             return Block::get(from, name, false);
         else if (type->members.find(name) != type->members.end())
-            return type->members[name];
+            return type->getMember(from, name);
+        else if (parent != nullptr)
+            return parent->get(from, name);
         else
             throw RuntimeException("member \"" + name + "\" of object of type \"" + type->name + "\" not found");
     }
@@ -32,6 +32,8 @@ public:
     void addMember(Block *from, const std::string &name, Modifiers mods, Type *member) override {
         Block::addMember(from, name, mods, member);
     }
+
+    ClassType *type;
 };
 
 

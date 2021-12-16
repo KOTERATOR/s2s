@@ -14,16 +14,20 @@ public:
 
     }
 
-    Type *invoke(Runtime *r, std::vector<Type *> args) override
+    Type *invoke(Runtime *r, Args args, KWArgs kwargs, Type *handle) override
     {
         size_t argsLen = args.size();
+        std::string delim = kwargs.has("delim") ? kwargs["delim"]->toString() : " ";
         for (auto & arg : args)
         {
             std::cout << arg->toString();
             if (argsLen > 1)
-                std::cout << " ";
+                std::cout << delim;
         }
-        std::cout << std::endl;
+        if (kwargs.has("end"))
+            std::cout << kwargs["end"]->toString();
+        else
+            std::cout << std::endl;
         return nullptr;
     }
 };

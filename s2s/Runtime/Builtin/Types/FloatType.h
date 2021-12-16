@@ -12,7 +12,7 @@ class FloatType : public Type
 {
 public:
     float value;
-    FloatType(float number) : Type(TypeEnum::Number)
+    FloatType(float number) : Type(TypeEnum::Float)
     {
         this->value = number;
     }

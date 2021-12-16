@@ -44,3 +44,22 @@ Type *StringType::div(Type *another)
             return new StringType(str),
             return new StringType(str))
 }
+
+int StringType::compare(Type *another) {
+    if (IS_STRING(another))
+    {
+        auto str2 = TO_STRING(another)->str;
+        int len1 = str.length();
+        int len2 = str2.length();
+        size_t limit = std::max(len1, len2);
+        int i = 0;
+        while (i < limit)
+        {
+            if (str[i] != str2[i])
+                return str[i] - str2[i];
+            i++;
+        }
+        return len1 - len2;
+    }
+    return -1;
+}

@@ -15,11 +15,14 @@ class ClassType : public Type {
 public:
     std::string name;
     std::vector<AssignmentNode*> instanceVars;
+
+    ClassType(Block *parentBlock) : Type(Type::Class, parentBlock) {}
     ClassType(Runtime *r, Block *parentBlock, ClassNode *classNode);
 
-    ObjectType *createInstance(Runtime *r);
+    virtual ObjectType *createInstance(Runtime *r);
 
-    Type *get(Block *from, const std::string &name, bool allowParentScope) override;
+    Type *&get(Block *from, const std::string &name, bool allowParentScope) override;
+    Type *&getMember(Block *from, const std::string &name);
 
     void addMember(Block *from, const std::string &name, Type *member) override;
 

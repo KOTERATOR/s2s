@@ -47,7 +47,7 @@ public:
 
     T *prev()
     {
-        if (currentItem > 1)
+        if (currentItem > 0)
         {
             currentItem--;
             return get(currentItem-1);

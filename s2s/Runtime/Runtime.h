@@ -26,6 +26,10 @@
 #include <utility>
 #include <Runtime/Builtin/Types/ClassType.h>
 #include <Runtime/Builtin/Types/ObjectType.h>
+#include <Runtime/Builtin/Classes/System.h>
+#include <Runtime/Builtin/Classes/Process.h>
+#include <Runtime/Builtin/Classes/Hash.h>
+#include <Runtime/Builtin/Classes/Compiler/Project.h>
 
 
 class NumberValue;
@@ -63,16 +67,67 @@ private:
                 return new BoolType(n->value.value == "true");
             default:
                 // throw
+                return nullptr;
                 break;
         }
     }
 
-    Type *runFunction(Function *f, std::vector<Type *> args)
+    Type *getMember(ParserNode *m, Block *b = nullptr, Block *from = nullptr)
     {
-        auto *functionBlock = new Block(f->parentBlock);
+        if (b == nullptr)
+            b = currentBlock;
+        if (from == nullptr)
+            from = currentBlock;
+
+        if (m->type == ParserNode::MemberAccess)
+        {
+            auto ma = (MemberAccessNode*)m;
+            auto member = getMember(ma->object, b, from);
+            return getMember(ma->member, member, from);
+        }
+        else
+        {
+            return run(m, b, from);
+        }
+    }
+
+    void setMemberValue(ParserNode *m, Type* value, Block *b = nullptr, Block *from = nullptr)
+    {
+        if (b == nullptr)
+            b = currentBlock;
+
+        if (from == nullptr)
+            from = currentBlock;
+
+        if (m->type == ParserNode::Symbol)
+        {
+            auto symbol = (SymbolNode*)m;
+            if (symbol->modifiers != nullptr)
+                b->addMember(from, symbol->name, getModifiers(symbol->modifiers), value);
+            else
+                b->addMember(from, symbol->name, value);
+        }
+        else if (m->type == ParserNode::GetOperation)
+        {
+            auto get = (GetNode*)m;
+            auto v = run(get->what, b);
+            auto i = run(get->value, from);
+            v->op_getitem(i) = value;
+        }
+        else if (m->type == ParserNode::MemberAccess)
+        {
+            auto ma = (MemberAccessNode*)m;
+            auto member = getMember(ma->object, b, from);
+            return setMemberValue(ma->member, value, member, from);
+        }
+    }
+
+    Type *runFunction(Function *f, std::vector<Type *> args, KWArgs kwargs, Type *handle)
+    {
+        auto *functionBlock = new Block(handle == nullptr ? f->parentBlock : handle);
         Block *currentRuntimeBlock = currentBlock;
         currentBlock = functionBlock;
-        Type *value = f->invoke(this, std::move(args));
+        Type *value = f->invoke(this, std::move(args), std::move(kwargs), handle);
         currentBlock = currentRuntimeBlock;
         return value;
     }
@@ -109,8 +164,7 @@ private:
                 }
                 else if (s->type == ParserNode::MemberAccess)
                 {
-                    auto member = (MemberAccessNode*)s;
-
+                    setMemberValue((MemberAccessNode*)s, value, currentBlock, from);
                 }
                 else
                 {
@@ -136,7 +190,6 @@ private:
             case ParserNode::Symbol:
             {
                 auto *n = (SymbolNode *)node;
-                auto mods = currentBlock->modifiers[n->name];
                 /*std::string modifiersStr = std::to_string((int)mods.accessModifier);
                 if (mods.isConst)
                 {
@@ -211,27 +264,48 @@ private:
             case ParserNode::FunctionCall:
             {
                 auto n = (FunctionCallNode*)node;
-                std::cout <<"Function Call: " << n->functionName << std::endl;
-                auto f = currentBlock->get(from, n->functionName);
+                std::cout <<"Function Call: " << n->function->toString() << std::endl;
+                auto f = getMember(n->function, currentBlock, from);
 
                 if (f->type == Type::Class)
                     return dynamic_cast<ClassType*>(f)->createInstance(this);
                 else if (f->type == Type::Function) {
                     std::vector<Type*> args;
+                    KWArgs kwargs;
+                    Type *handle = nullptr;
                     if (currentBlock->isTypeBlock)
                     {
                         auto fromType = ((Type*)currentBlock);
-                        if (fromType->type != Type::Class && fromType->type != Type::Function)
+                        auto ff = (Function*)f;
+                        if (ff->functionType == Function::Member)
                         {
-                            args.emplace_back(fromType);
+                            if (fromType->type == Type::Class)
+                                throw RuntimeException("cannot call member function from class context");
+                            else if (fromType->type != Type::Function)
+                                handle = fromType;
+                        }
+                        else if (ff->functionType == Function::Static)
+                        {
+                            if (fromType->type == Type::Class)
+                                handle = fromType;
+                            else if (fromType->type != Type::Function)
+                                handle = ((ObjectType*)fromType)->type;
                         }
                     }
 
                     for (auto & arg : n->args)
                     {
-                        args.emplace_back(runNode(arg));
+                        if (arg->type == ParserNode::Assignment) {
+                            auto a_arg = (AssignmentNode*)arg;
+                            if (a_arg->to->type == ParserNode::Symbol) {
+                                kwargs.args[((SymbolNode*)a_arg->to)->name] = runNode(a_arg->what);
+                            }
+                        }
+                        else {
+                            args.emplace_back(runNode(arg));
+                        }
                     }
-                    return runFunction(dynamic_cast<Function *>(f), args);
+                    return runFunction(dynamic_cast<Function *>(f), args, kwargs, handle);
                 }
             }
             case ParserNode::Return:
@@ -285,12 +359,21 @@ private:
                             objBlock = (Block*)(Type*)obj;
                         else
                             objBlock = (Block*)(Type*)obj;
+
+                        for (const auto &m : objBlock->members) {
+                            std::cout << "\t" << m.first << ": " << m.second << std::endl;
+                        }
+
                         return run(member->member, objBlock);
                     }
                     else
                     {
                         // TODO: throw
                     }
+                }
+                else
+                {
+                    return getMember(member);
                 }
                 //member->member->;
                 //return run(member->object, b);
@@ -311,6 +394,10 @@ public:
         mainBlock->addMember(mainBlock, "input", new Input());
         mainBlock->addMember(mainBlock, "int", new IntFunction());
         mainBlock->addMember(mainBlock, "float",new FloatFunction());
+        mainBlock->addMember(mainBlock, "System", new System(mainBlock));
+        mainBlock->addMember(mainBlock, "Process", new Process(mainBlock));
+        mainBlock->addMember(mainBlock, "Hash", new Hash(mainBlock));
+        mainBlock->addMember(mainBlock, "Project", new Project(mainBlock));
     }
 
     Type *run(ParserNode *node, Block *block)
@@ -318,6 +405,17 @@ public:
         auto temp = currentBlock;
         currentBlock = block;
         auto r = runNode(node, temp);
+        currentBlock = temp;
+        return r;
+    }
+
+    Type *run(ParserNode *node, Block *block, Block *from)
+    {
+        auto temp = currentBlock;
+        currentBlock = block;
+        if (from == nullptr)
+            from = temp;
+        auto r = runNode(node, from);
         currentBlock = temp;
         return r;
     }
@@ -332,13 +430,18 @@ public:
         currentBlock = new Block(currentBlock);
         for (auto &n : nodes)
         {
-            //std::cout << n->toString() << std::endl;
+            //std::cout << n->digestToString() << std::endl;
             if (n->type == ParserNode::Return)
                 return runNode(n);
             else
                 runNode(n);
         }
         return nullptr;
+    }
+
+    std::string blockInfo()
+    {
+        return mainBlock->blockInfo();
     }
 
     static Block::Modifiers getModifiers(ModifiersNode *node)

@@ -8,11 +8,11 @@
 
 class FunctionCallNode : public ParserNode {
 public:
-    std::string functionName;
+    ParserNode* function;
     std::vector<ParserNode *> args;
 
-    FunctionCallNode(std::string functionName, std::vector<ParserNode *> args) : ParserNode(NodeType::FunctionCall) {
-        this->functionName = std::move(functionName);
+    FunctionCallNode(ParserNode *function, std::vector<ParserNode *> args) : ParserNode(NodeType::FunctionCall) {
+        this->function = function;
         this->args = std::move(args);
     }
 
@@ -24,7 +24,7 @@ public:
                 argsStr += ", ";
         }
         argsStr += "]";
-        return std::string("FunctionCallNode: name=") + functionName + std::string(" args=") + argsStr;
+        return std::string("FunctionCallNode: name=") + function->toString() + std::string(" args=") + argsStr;
     }
 };
 

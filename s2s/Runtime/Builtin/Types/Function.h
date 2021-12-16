@@ -13,42 +13,49 @@
 class Block;
 class Runtime;
 
-class FunctionKWArgs
-{
-private:
-    std::map<std::string, Type*> args;
-public:
-    Type *operator[](std::string name)
-    {
-        if (args.find(name) != args.end())
-        {
-
-        }
-    }
-};
 
 class Function : public Type {
 public:
+    enum FunctionType {
+        Global,
+        Static,
+        Member
+    };
+
     std::string name;
+    FunctionType functionType;
     std::vector<ParserNode *> args;
     std::vector<ParserNode *> body;
     Block *parentBlock;
 
-    Function(const std::string &name) : Type(Type::Function)
+    Type *cls = nullptr;
+    NativeFunction nativeFunction = nullptr;
+
+    Function(const std::string &name, FunctionType functionType = FunctionType::Global) : Type(Type::Function)
     {
+        this->functionType = functionType;
         parentBlock = nullptr;
         this->name= name;
     }
 
-    Function(Block *parentBlock, FunctionNode *node) : Type(Type::Function)
+    Function(const std::string &name, Type* cls, NativeFunction impl, FunctionType functionType = FunctionType::Global) : Type(Type::Function)
     {
+        this->functionType = functionType;
+        this->cls = cls;
+        this->nativeFunction = impl;
+        this->name = name;
+    }
+
+    Function(Block *parentBlock, FunctionNode *node, FunctionType functionType = FunctionType::Global) : Type(Type::Function)
+    {
+        this->functionType = functionType;
         this->parentBlock = parentBlock;
         name = node->name;
         args = node->args;
         body = node->body;
     }
 
-    virtual Type *invoke(Runtime *r, std::vector<Type *> args);
+    virtual Type *invoke(Runtime *r, Args args, KWArgs kwargs, Type *handle);
 
     std::string toString() override
     {

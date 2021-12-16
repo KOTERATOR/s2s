@@ -14,7 +14,7 @@ public:
 
     }
 
-    Type *invoke(Runtime *r, std::vector<Type *> args) override
+    Type *invoke(Runtime *r, Args args, KWArgs kwargs, Type *handle) override
     {
         size_t argsLen = args.size();
         if (argsLen > 0) {

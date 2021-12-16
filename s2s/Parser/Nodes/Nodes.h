@@ -15,6 +15,7 @@
 #include "IfNode.h"
 #include "MemberAccessNode.h"
 #include "ModifiersNode.h"
+#include "ModuleImportNode.h"
 #include "OperationNode.h"
 #include "ParenthesesNode.h"
 #include "ReturnNode.h"

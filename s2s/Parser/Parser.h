@@ -31,6 +31,9 @@ private:
                 // TODO: throw
             }
             std::string name = nameToken.value;
+            if (name == "operator") {
+                name += parseOperatorOperation();
+            }
 
             Token parenthesisToken = *lines.current()->next();
             if (parenthesisToken.type != Token::SpecialChar && parenthesisToken.value != "(") {
@@ -46,21 +49,48 @@ private:
             return new ReturnNode(next(nullptr));
         } else if (symbol == "if") {
             return parseIf();
+        } else if (symbol == "import") {
+            return new ModuleImportNode(next(nullptr));
+        } else if (symbol == "operator") {
+            return new SymbolNode(symbol + parseOperatorOperation());
         } else if (isModifier(symbol)) {
-            std::vector<std::string> modifiers;
-            modifiers.emplace_back(symbol);
-            while (lines.current()->lookNext() != nullptr && isModifier(lines.current()->lookNext()->value)) {
-                modifiers.emplace_back(lines.current()->next()->value);
-            }
-            return new ModifiersNode(modifiers);
+                std::vector<std::string> modifiers;
+                modifiers.emplace_back(symbol);
+                while (lines.current()->lookNext() != nullptr && isModifier(lines.current()->lookNext()->value)) {
+                    modifiers.emplace_back(lines.current()->next()->value);
+                }
+                return new ModifiersNode(modifiers);
         } else {
             return new SymbolNode(symbol);
         }
     }
 
-    FunctionCallNode *parseFunctionCall(const std::string &name) {
+    std::string parseOperatorOperation() {
+        auto nextToken = lines.current()->next();
+        if (nextToken != nullptr && (nextToken->type == Token::Operation || nextToken->type == Token::SpecialChar || nextToken->type == Token::CompareOperation || nextToken->type == Token::BitOperation)) {
+            auto value = nextToken->value;
+            if (value == "[")
+            {
+                auto close = lines.current()->next();
+                if (close != nullptr && close->value == "]") {
+                    return "[]";
+                }
+                else {
+                    // TODO: throw
+                }
+            }
+            else if (value == "(") {
+                // TODO: throw
+            }
+            else {
+                return value;
+            }
+        }
+    }
+
+    FunctionCallNode *parseFunctionCall(ParserNode *n) {
         auto args = nextSequence(",", ")");
-        return new FunctionCallNode(name, args);
+        return new FunctionCallNode(n, args);
     }
 
     ClassNode *parseClass() {
@@ -101,10 +131,12 @@ private:
                     auto elifBody = parseBody(l->getLevel());
                     elseIfs.emplace_back(new IfNode(elifCond, elifBody));
                 } else {
+                    l->prev();
                     lines.prev();
                     break;
                 }
             } else {
+                l->prev();
                 lines.prev();
                 break;
             }
@@ -165,6 +197,69 @@ private:
         return node;
     }
 
+    ParserNode *nextSquareBracket(ParserNode *prev)
+    {
+        if (prev != nullptr) {
+            return new GetNode(prev, nextTo("]"));
+        }
+        return new ArrayNode(nextSequence(",", "]"));
+    }
+
+    ParserNode *nextParenthesis(ParserNode *prev)
+    {
+        if (prev != nullptr) {
+            // function call
+            return parseFunctionCall(prev);
+        }
+        return new ParenthesesNode(nextTo(")"));
+    }
+
+    ParserNode *nextNonOp(ParserNode *prev) {
+        Token *t = lines.current()->next();
+        if (t == nullptr)
+            return prev;
+
+        Token token = *t;
+        Token::TokensEnum type = token.type;
+        std::string value = token.value;
+
+        if (prev == nullptr) {
+            switch (type) {
+                case Token::Number:
+                case Token::String:
+                    return nextNonOp(new ValueNode(token));
+                case Token::Symbol:
+                    if (value == "true" || value == "false")
+                        return nextNonOp(new ValueNode(token));
+                    return nextNonOp(parseSymbol(token.value));
+            }
+        }
+
+        if (type == Token::SpecialChar)
+        {
+            if (value == "[")
+            {
+                return nextSquareBracket(prev);
+            }
+            else if (value == "(")
+            {
+                return nextParenthesis(prev);
+            }
+            else if (value == ".")
+            {
+                auto member = nextNonOp(prev);
+                return nextNonOp(new MemberAccessNode(prev, member));
+            }
+        }
+        else if (type == Token::Symbol)
+        {
+            return nextNonOp(parseSymbol(token.value));
+        }
+
+        lines.current()->prev();
+        return prev;
+    }
+
     ParserNode *next(ParserNode *prev) {
         Token *t = lines.current()->next();
         if (t == nullptr) {
@@ -182,7 +277,7 @@ private:
                 case Token::Symbol:
                     if (value == "true" || value == "false")
                         return next(new ValueNode(token));
-                    return next(parseSymbol(token.value)/*new SymbolNode(token.value)*/);
+                    return next(parseSymbol(token.value));
             }
         }
 
@@ -200,13 +295,14 @@ private:
             } else if (value == "(") {
                 if (prev != nullptr && prev->type == ParserNode::Symbol) {
                     // function call
-                    return next(parseFunctionCall(((SymbolNode *) prev)->name));
+                    return next(parseFunctionCall(prev));
                 }
                 return next(new ParenthesesNode(nextTo(")")));
             } else if (value == ".") {
                 // member access
                 if (prev != nullptr) {
-                    return new MemberAccessNode(prev, next(nullptr));
+                    auto member = nextNonOp(prev);
+                    return next(new MemberAccessNode(prev, member));
                 } else {
                     // TODO: throw
                 }

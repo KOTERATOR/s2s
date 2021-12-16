@@ -24,6 +24,8 @@ public:
     Type *minus(Type *) override;
     Type *mult(Type *) override;
     Type *div(Type *) override;
+
+    int compare(Type *another) override;
 };
 
 

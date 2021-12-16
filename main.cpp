@@ -8,7 +8,6 @@
 
 int main(int argc, char **argv)
 {
-    std::cout << "Hello World!" << std::endl;
     std::cout << "argc = " << argc << std::endl;
 
     for (int i = 0; i < argc; i++)
@@ -37,9 +36,10 @@ int main(int argc, char **argv)
                     LexerLine lexerLine = Lexer::tokenize(line, str);
                     for (int i = 0; i < lexerLine.tokens.size(); i++)
                     {
-                        //std::cout << lexerLine.tokens[i].toString() << std::endl;
+                        //std::cout << lexerLine.tokens[i].digestToString() << std::endl;
                     }
-                    lines.emplace_back(lexerLine);
+                    if (!lexerLine.tokens.empty())
+                        lines.emplace_back(lexerLine);
                 }
                 catch (LexerException &e)
                 {
@@ -64,6 +64,7 @@ int main(int argc, char **argv)
             Runtime r;
             try {
                 r.run(nodes);
+                //std::cout << r.blockInfo() << std::endl;
             }
             catch (RuntimeException &e)
             {

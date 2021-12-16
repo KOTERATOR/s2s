@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <sstream>
 #include "RuntimeException.h"
 
 class Type;
@@ -32,6 +33,12 @@ public:
         AccessModifiers accessModifier = AccessModifiers::Default;
         bool isConst = false;
         bool isStatic = false;
+
+        Modifiers(AccessModifiers am = AccessModifiers::Default, bool isConst = false, bool isStatic = false) {
+            this->accessModifier = am;
+            this->isConst = isConst;
+            this->isStatic = isStatic;
+        }
     };
 
     bool isTypeBlock = false;
@@ -59,13 +66,23 @@ public:
         return false;
     }
 
-    virtual Type *get(Block *from, const std::string &name, bool allowParentScope=true)
+    Block* getMemberBlock(Block *from, const std::string &name, bool allowParentScope=true)
+    {
+        if (members.find(name) != members.end())
+            return this;
+        else if (parent != nullptr && allowParentScope)
+            return parent->getMemberBlock(from, name);
+        else
+            throw RuntimeException("member \"" + name + "\" not found in this scope");
+    }
+
+    virtual Type *&get(Block *from, const std::string &name, bool allowParentScope=true)
     {
         if (members.find(name) != members.end()) {
             if (modifiers.find(name) != modifiers.end())
             {
                 auto mods = modifiers[name];
-                if (mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected && !(isChild(from) && from == this))
+                if ((mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected) && !(from == this || isChild(from)))
                     throw RuntimeException("member \"" + name + "\" is private/protected within this context");
             }
             return members[name];
@@ -76,6 +93,10 @@ public:
             throw RuntimeException("member \"" + name + "\" not found in this scope");
     }
 
+    bool hasMember(const std::string &name) {
+        return members.find(name) != members.end();
+    }
+
     virtual void addMember(Block *from, const std::string &name, Type *member)
     {
         if (modifiers.find(name) != modifiers.end())
@@ -83,7 +104,7 @@ public:
             auto mods = modifiers[name];
             if (mods.isConst)
                 throw RuntimeException("cannot assign to const member \"" + name + "\"");
-            else if (mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected && !(isChild(from) || from == this))
+            else if ((mods.accessModifier == AccessModifiers::Private || mods.accessModifier == AccessModifiers::Protected) && !(from == this || isChild(from)))
                 throw RuntimeException("member \"" + name + "\" is private/protected within this context");
         }
         else
@@ -109,6 +130,9 @@ public:
         members[name] = member;
         modifiers[name] = mods;
     }
+
+    std::string blockInfo(int level = 0);
+
 };
 
 

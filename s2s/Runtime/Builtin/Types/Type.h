@@ -49,6 +49,33 @@ class BoolType;
         break;                     \
     }
 
+
+typedef std::vector<Type*> Args;
+
+class KWArgs
+{
+public:
+    std::map<std::string, Type*> args;
+    Type *operator[](const std::string &name)
+    {
+        if (args.find(name) != args.end())
+        {
+            return args[name];
+        }
+        return nullptr;
+    }
+
+    bool has(const std::string &name) {
+        return args.find(name) != args.end();
+    }
+};
+
+class Runtime;
+
+typedef Type* (Type::*NativeFunction)(Runtime *r, Args args, KWArgs kwargs, Type *handle);
+#define NATIVE(x) (NativeFunction)(&x)
+#define NATIVE_FUNCTION(name) Type* (name)(Runtime *r, Args args, KWArgs kwargs, Type *handle)
+
 class Function;
 
 class Type : public Block
@@ -61,12 +88,12 @@ public:
         String,
         Array,
         Bool,
+        Dictionary,
         Function,
         Class,
-        Custom
+        Custom,
+        Module
     };
-
-    //std::map<std::string, Method*> methods;
 
     TypeEnum type;
 
@@ -83,40 +110,17 @@ public:
         return ::operator new(count);
     }
 
-    static std::string typeToString(Type *type)
-    {
-        switch (type->type)
-        {
-            case Number:
-                return "Number";
-            case Float:
-                return "Float";
-            case String:
-                return "String";
-            case Array:
-                return "Array";
-            case Bool:
-                return "Bool";
-            case Function:
-                return "Function";
-            case Class:
-                return "Class";
-            case Custom:
-                // TODO: return custom type name
-                return "Custom";
-            default:
-                return "unknown";
-        }
-    }
+    static std::string typeToString(Type *type);
 
     static std::string typeAddressString(Type *type)
     {
         std::stringstream stream;
-        stream << "0x" << std::setfill('0') << std::setw(sizeof(size_t)*2) << std::hex << type;
+        // << "0x" << std::setfill('0') << std::setw(sizeof(size_t)*2)
+        stream << std::hex << type;
         return stream.str();
     }
 
-    virtual std::string toString() { return "<object with type " + typeToString(this) + " at " + typeAddressString(this) + ">"; }
+    virtual std::string toString() { return "<object of type " + typeToString(this) + " at " + typeAddressString(this) + ">"; }
     virtual Type *copy() { return nullptr; }
 
     virtual Type *plus(Type *another) { return nullptr; }
@@ -133,6 +137,8 @@ public:
     virtual bool op_equals(Type *another) { return compare(another) == 0; }
     virtual bool op_not_equals(Type *another) { return op_equals(another) != 0; }
     virtual Type *&op_getitem(Type *another) { throw; }
+
+    void addNativeMethod(const std::string &name, Modifiers mods, NativeFunction function);
 
     virtual ~Type() = default;
 };

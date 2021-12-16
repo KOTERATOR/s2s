@@ -10,18 +10,21 @@ Block::Modifiers getClassModifiers(ModifiersNode* mn)
     auto mods = Runtime::getModifiers(mn);
     if (mods.accessModifier == Block::Default)
         mods.accessModifier = Block::Private;
+    return mods;
 }
 
 ClassType::ClassType(Runtime *r, Block *parentBlock, ClassNode *classNode) : Type(TypeEnum::Class, parentBlock)
 {
     this->name = classNode->name;
+    std::cout << classNode->body.size() << std::endl;
     for (auto &b : classNode->body)
     {
         if (b->type == ParserNode::Function)
         {
             auto f = (FunctionNode*)b;
             auto mods = getClassModifiers(f->modifiers);
-            Block::addMember(this, f->name, mods, new class Function((Block*)this, f));
+            auto f_type = mods.isStatic ? Function::Static : Function::Member;
+            Block::addMember(this, f->name, mods, new class Function((Block*)this, f, f_type));
         }
         else if (b->type == ParserNode::Assignment)
         {
@@ -30,8 +33,10 @@ ClassType::ClassType(Runtime *r, Block *parentBlock, ClassNode *classNode) : Typ
             {
                 auto s = (SymbolNode*)a->to;
                 auto mods = getClassModifiers(s->modifiers);
-                if (mods.isStatic || mods.isConst)
-                    Block::addMember(this, s->name, mods, r->run(a->what, (Block*)this));
+                if (mods.isStatic) {
+                    std::cout << "Added static variable - " << s->name << std::endl;
+                    Block::addMember(this, s->name, mods, r->run(a->what, (Block *) this));
+                }
                 else
                     instanceVars.emplace_back(a);
             }
@@ -56,7 +61,7 @@ ClassType::ClassType(Runtime *r, Block *parentBlock, ClassNode *classNode) : Typ
     parentBlock->addMember(this, name, this);
 }
 
-Type *ClassType::get(Block *from, const std::string &name, bool allowParentScope) {
+Type *&ClassType::get(Block *from, const std::string &name, bool allowParentScope) {
     if (modifiers.find(name) != modifiers.end())
     {
         auto mods = modifiers[name];
@@ -64,6 +69,10 @@ Type *ClassType::get(Block *from, const std::string &name, bool allowParentScope
             throw RuntimeException("member \"" + name + "\" of class \"" + this->name + "\" is not static");
     }
     return Block::get(from, name, allowParentScope);
+}
+
+Type *&ClassType::getMember(Block *from, const std::string &name) {
+    return Block::get(from, name, false);
 }
 
 void ClassType::addMember(Block *from, const std::string &name, Type *member) {
@@ -78,6 +87,7 @@ void ClassType::addMember(Block *from, const std::string &name, Block::Modifiers
 
 ObjectType *ClassType::createInstance(Runtime *r) {
     auto obj = new ObjectType(this);
+    std::cout << "Create Instance of " << name << std::endl;
     for (auto &v : instanceVars)
     {
         if (v->to->type == ParserNode::Symbol)
@@ -85,6 +95,7 @@ ObjectType *ClassType::createInstance(Runtime *r) {
             auto s = (SymbolNode*)v->to;
             auto mods = getClassModifiers(s->modifiers);
             obj->addMember(this, s->name, mods, r->run(v->what, (Block*)this));
+            std::cout << "\tadded member " << s->name << ": " << obj->members[s->name] << std::endl;
         }
         else
         {

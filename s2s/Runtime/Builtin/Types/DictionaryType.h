@@ -5,9 +5,15 @@
 #ifndef S2S_DICTIONARYTYPE_H
 #define S2S_DICTIONARYTYPE_H
 
+#include "Type.h"
 
-class DictionaryType {
+class DictionaryType : public Type {
+protected:
+    std::map<Type*, Type*> dict;
+public:
+    DictionaryType() : Type(TypeEnum::Dictionary) {
 
+    }
 };
 
 
