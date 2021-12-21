@@ -49,6 +49,8 @@ Type *Function::invoke(Runtime *r, Args args, KWArgs kwargs, Type *handle) {
                 if (startedArgs)
                     throw RuntimeException("only kwargs allowed after _args_");
                 argCounter++;
+                if (i >= args.size())
+                    throw RuntimeException("function called with invalid count of arguments");
                 r->currentBlock->addMember(this, f_s_arg->name, args[i]);
             }
         }

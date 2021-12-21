@@ -32,6 +32,15 @@ class BoolType;
 #define IS_ARRAY(x) IS_TYPE(x, Type::TypeEnum::Array)
 #define IS_BOOL(x) IS_TYPE(x, Type::TypeEnum::Bool)
 
+
+#define NATIVE_CAST_EXCEPTION throw RuntimeException("awaited different type in native call")
+#define NATIVE_CAST(x, check, action) ((check) ? (action) : NATIVE_CAST_EXCEPTION)
+#define TO_NATIVE_INT(x) NATIVE_CAST(x, IS_NUMBER(x), TO_NUMBER(x)->value)
+#define TO_NATIVE_STRING(x) NATIVE_CAST(x, IS_STRING(x), TO_STRING(x)->str)
+#define TO_NATIVE_FLOAT(x) NATIVE_CAST(x, IS_FLOAT(x), TO_FLOAT(x)->value)
+#define TO_NATIVE_ARRAY(x) NATIVE_CAST(x, IS_ARRAY(x), TO_ARRAY(x)->elements)
+#define TO_NATIVE_BOOL(x) NATIVE_CAST(x, IS_BOOL(x), TO_BOOL(x)->value)
+
 #define VALUEOP(v, x1, x2, x3, x4) \
     switch ((v)->type)               \
     {                              \

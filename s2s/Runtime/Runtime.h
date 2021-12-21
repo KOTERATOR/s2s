@@ -30,6 +30,9 @@
 #include <Runtime/Builtin/Classes/Process.h>
 #include <Runtime/Builtin/Classes/Hash.h>
 #include <Runtime/Builtin/Classes/Compiler/Project.h>
+#include <Runtime/Builtin/Classes/Compiler/CustomProject.h>
+#include <Runtime/Builtin/Classes/Path.h>
+#include <Runtime/Builtin/Classes/File.h>
 
 
 class NumberValue;
@@ -120,16 +123,6 @@ private:
             auto member = getMember(ma->object, b, from);
             return setMemberValue(ma->member, value, member, from);
         }
-    }
-
-    Type *runFunction(Function *f, std::vector<Type *> args, KWArgs kwargs, Type *handle)
-    {
-        auto *functionBlock = new Block(handle == nullptr ? f->parentBlock : handle);
-        Block *currentRuntimeBlock = currentBlock;
-        currentBlock = functionBlock;
-        Type *value = f->invoke(this, std::move(args), std::move(kwargs), handle);
-        currentBlock = currentRuntimeBlock;
-        return value;
     }
 
     Type *runNode(ParserNode *node)
@@ -264,47 +257,48 @@ private:
             case ParserNode::FunctionCall:
             {
                 auto n = (FunctionCallNode*)node;
-                std::cout <<"Function Call: " << n->function->toString() << std::endl;
+                //std::cout <<"Function Call: " << n->function->toString() << std::endl;
                 auto f = getMember(n->function, currentBlock, from);
 
-                if (f->type == Type::Class)
-                    return dynamic_cast<ClassType*>(f)->createInstance(this);
-                else if (f->type == Type::Function) {
-                    std::vector<Type*> args;
-                    KWArgs kwargs;
-                    Type *handle = nullptr;
-                    if (currentBlock->isTypeBlock)
+                std::vector<Type*> args;
+                KWArgs kwargs;
+                Type *handle = nullptr;
+                if (currentBlock->isTypeBlock)
+                {
+                    auto fromType = ((Type*)currentBlock);
+                    auto ff = (Function*)f;
+                    if (ff->functionType == Function::Member)
                     {
-                        auto fromType = ((Type*)currentBlock);
-                        auto ff = (Function*)f;
-                        if (ff->functionType == Function::Member)
-                        {
-                            if (fromType->type == Type::Class)
-                                throw RuntimeException("cannot call member function from class context");
-                            else if (fromType->type != Type::Function)
-                                handle = fromType;
-                        }
-                        else if (ff->functionType == Function::Static)
-                        {
-                            if (fromType->type == Type::Class)
-                                handle = fromType;
-                            else if (fromType->type != Type::Function)
-                                handle = ((ObjectType*)fromType)->type;
-                        }
+                        if (fromType->type == Type::Class)
+                            throw RuntimeException("cannot call member function from class context");
+                        else if (fromType->type != Type::Function)
+                            handle = fromType;
                     }
+                    else if (ff->functionType == Function::Static)
+                    {
+                        if (fromType->type == Type::Class)
+                            handle = fromType;
+                        else if (fromType->type != Type::Function)
+                            handle = ((ObjectType*)fromType)->type;
+                    }
+                }
 
-                    for (auto & arg : n->args)
-                    {
-                        if (arg->type == ParserNode::Assignment) {
-                            auto a_arg = (AssignmentNode*)arg;
-                            if (a_arg->to->type == ParserNode::Symbol) {
-                                kwargs.args[((SymbolNode*)a_arg->to)->name] = runNode(a_arg->what);
-                            }
-                        }
-                        else {
-                            args.emplace_back(runNode(arg));
+                for (auto & arg : n->args)
+                {
+                    if (arg->type == ParserNode::Assignment) {
+                        auto a_arg = (AssignmentNode*)arg;
+                        if (a_arg->to->type == ParserNode::Symbol) {
+                            kwargs.args[((SymbolNode*)a_arg->to)->name] = runNode(a_arg->what);
                         }
                     }
+                    else {
+                        args.emplace_back(run(arg, from));
+                    }
+                }
+
+                if (f->type == Type::Class)
+                    return dynamic_cast<ClassType*>(f)->createInstance(this, args, kwargs);
+                else if (f->type == Type::Function) {
                     return runFunction(dynamic_cast<Function *>(f), args, kwargs, handle);
                 }
             }
@@ -361,7 +355,7 @@ private:
                             objBlock = (Block*)(Type*)obj;
 
                         for (const auto &m : objBlock->members) {
-                            std::cout << "\t" << m.first << ": " << m.second << std::endl;
+                            //std::cout << "\t" << m.first << ": " << m.second << std::endl;
                         }
 
                         return run(member->member, objBlock);
@@ -398,6 +392,9 @@ public:
         mainBlock->addMember(mainBlock, "Process", new Process(mainBlock));
         mainBlock->addMember(mainBlock, "Hash", new Hash(mainBlock));
         mainBlock->addMember(mainBlock, "Project", new Project(mainBlock));
+        mainBlock->addMember(mainBlock, "CustomProject", new CustomProject(mainBlock));
+        mainBlock->addMember(mainBlock, "Path", new Path(mainBlock));
+        mainBlock->addMember(mainBlock, "File", new File(mainBlock));
     }
 
     Type *run(ParserNode *node, Block *block)
@@ -427,7 +424,7 @@ public:
 
     Type *run(std::vector<ParserNode*> nodes)
     {
-        currentBlock = new Block(currentBlock);
+        //currentBlock = new Block(currentBlock);
         for (auto &n : nodes)
         {
             //std::cout << n->digestToString() << std::endl;
@@ -464,6 +461,16 @@ public:
             }
         }
         return mods;
+    }
+
+    Type *runFunction(Function *f, std::vector<Type *> args, KWArgs kwargs, Type *handle)
+    {
+        auto *functionBlock = new Block(handle == nullptr ? f->parentBlock : handle);
+        Block *currentRuntimeBlock = currentBlock;
+        currentBlock = functionBlock;
+        Type *value = f->invoke(this, std::move(args), std::move(kwargs), handle);
+        currentBlock = currentRuntimeBlock;
+        return value;
     }
 };
 

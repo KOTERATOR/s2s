@@ -3,6 +3,8 @@
 //
 
 #include "ClassType.h"
+
+#include <utility>
 #include "Runtime/Runtime.h"
 
 Block::Modifiers getClassModifiers(ModifiersNode* mn)
@@ -85,7 +87,7 @@ void ClassType::addMember(Block *from, const std::string &name, Block::Modifiers
     modifiers[name].isStatic = true;
 }
 
-ObjectType *ClassType::createInstance(Runtime *r) {
+ObjectType *ClassType::createInstance(Runtime *r, Args args, KWArgs kwargs) {
     auto obj = new ObjectType(this);
     std::cout << "Create Instance of " << name << std::endl;
     for (auto &v : instanceVars)
@@ -102,6 +104,7 @@ ObjectType *ClassType::createInstance(Runtime *r) {
             throw RuntimeException("cannot assign to non-symbol");
         }
     }
+    obj->Construct(r, std::move(args), std::move(kwargs));
     return obj;
 }
 

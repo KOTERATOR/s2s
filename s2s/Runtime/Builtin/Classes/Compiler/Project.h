@@ -28,19 +28,21 @@ public:
 
     Project(Block *b) : ClassType(b) {
         ensureBuildDir();
+        addNativeMethod("Constructor", Modifiers(Public, true, false), NATIVE(Project::Constructor));
         addNativeMethod("AddSources", Modifiers(Public, true, false), NATIVE(Project::AddSources));
         addNativeMethod("Compile", Modifiers(Public, true, false), NATIVE(Project::Compile));
     }
 
-    ObjectType *createInstance(Runtime *r) override;
+    ObjectType *createInstance(Runtime *r, Args args, KWArgs kwargs) override;
 
     NATIVE_FUNCTION(Constructor) {
+        std::cout << "Project::ctor" << std::endl;
     }
 
     NATIVE_FUNCTION(AddSources) {
         ArrayType *sources = getArray("sources", handle);
         for (auto &a : args) {
-            std::cout << "Added source: " << a->toString();
+            std::cout << "Added source: " << a->toString() << std::endl;
             sources->values.emplace_back(a);
         }
         return nullptr;
@@ -58,7 +60,12 @@ public:
                 if (checkChange(filename, ph)) {
                     filesToCompile.emplace_back(filename);
                 }
-                objs.emplace_back((fs::path(BUILD_DIR) / fs::path(filename + ".o")).string());
+                else if (!fs::exists(fs::path(BUILD_DIR) / fs::path(filename + ".o")))
+                {
+                    std::cout << "Object " << filename + ".o" << " - not found.";
+                    filesToCompile.emplace_back(filename);
+                }
+                objs.emplace_back((fs::path(BUILD_DIR) / fs::path(filename)).string());
             }
         }
 
@@ -71,9 +78,13 @@ public:
 
             std::string objsStr;
             for (auto &o : objs)
-                objsStr += o + " ";
+                objsStr += o + ".o ";
 
-            std::cout << Process::execProcess(("g++ " + objsStr + " -o program.exe").c_str());
+            std::cout << Process::execProcess(("g++ " + objsStr + " -o program.exe").c_str()) << std::endl;
+        }
+        else
+        {
+            std::cout << "Project up-to-date" << std::endl;
         }
         saveCache(ph);
         return nullptr;
@@ -110,7 +121,6 @@ public:
     }
 
     void loadCache() {
-
         if (!fs::is_directory(cacheDir) || !fs::exists(cacheDir))
             fs::create_directory(cacheDir);
         if (fs::is_directory(cacheFile) || !fs::exists(cacheFile)) {

@@ -164,7 +164,7 @@ private:
 
         for (size_t i = lines.current()->getIndex(); i < lines.current()->size(); i++) {
             Token *t = lines.current()->lookNext();
-            std::cout << "t->value = \"" << t->value << "\"" << std::endl;
+            //std::cout << "t->value = \"" << t->value << "\"" << std::endl;
             if (t->value == sep) {
                 lines.current()->next();
             } else if (t->value == end) {
@@ -369,8 +369,6 @@ public:
         std::vector<ParserNode *> nodes;
         LineReader *l;
         while ((l = lines.next()) != nullptr) {
-            std::cout << "Line l - " << l->getLevel() << " "
-                      << (l->lookNext() != nullptr ? l->lookNext()->value : "null") << std::endl;
             ParserNode *res = next(nullptr);
             if (res == nullptr)
                 continue;

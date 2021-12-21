@@ -8,18 +8,18 @@
 
 int main(int argc, char **argv)
 {
-    std::cout << "argc = " << argc << std::endl;
+    /*std::cout << "argc = " << argc << std::endl;
 
     for (int i = 0; i < argc; i++)
     {
         std::cout << "arg" << i << " = " << argv[i] << std::endl;
-    }
+    }*/
 
     if (argc >= 2)
     {
         char *filename = argv[1];
         std::ifstream file;
-        std::cout << "filename: " << filename << std::endl;
+        //std::cout << "filename: " << filename << std::endl;
         file.open(filename);
         if (file.is_open())
         {
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
             Parser p(lines);
 
             std::vector<ParserNode*> nodes = p.parse();
-            for (auto &n : nodes)
+            /*for (auto &n : nodes)
             {
                 if (n == nullptr)
                 {
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
                 {
                     std::cout << n->toString() << std::endl;
                 }
-            }
+            }*/
             Runtime r;
             try {
                 r.run(nodes);

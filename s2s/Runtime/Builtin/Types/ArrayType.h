@@ -6,6 +6,7 @@
 #define S2S_ARRAYTYPE_H
 
 #include "Type.h"
+#include "IntType.h"
 #include <vector>
 
 class ArrayType : public Type

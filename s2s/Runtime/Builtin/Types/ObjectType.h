@@ -14,6 +14,12 @@ public:
         this->type = type;
     }
 
+    void Construct(Runtime *r, Args args, KWArgs kwargs) {
+        if (hasMember("Constructor", true)) {
+            callMethod(r, "Constructor", args, kwargs);
+        }
+    }
+
     Type *&get(Block *from, const std::string &name, bool allowParentScope) override {
         if (members.find(name) != members.end())
             return Block::get(from, name, false);
@@ -32,6 +38,8 @@ public:
     void addMember(Block *from, const std::string &name, Modifiers mods, Type *member) override {
         Block::addMember(from, name, mods, member);
     }
+
+    Type *callMethod(Runtime *r, const std::string &name, Args args, KWArgs kwargs);
 
     ClassType *type;
 };

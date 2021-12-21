@@ -5,8 +5,9 @@
 #include <Runtime/Builtin/Classes/Hash.h>
 #include "Project.h"
 
-ObjectType *Project::createInstance(Runtime *r) {
+ObjectType *Project::createInstance(Runtime *r, Args args, KWArgs kwargs) {
     auto ph = new ProjectHandle(this);
+    ph->Construct(r, args, kwargs);
     ph->loadCache();
     return ph;
 }

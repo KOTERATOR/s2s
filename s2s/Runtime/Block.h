@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <iostream>
 #include "RuntimeException.h"
 
 class Type;
@@ -93,8 +94,13 @@ public:
             throw RuntimeException("member \"" + name + "\" not found in this scope");
     }
 
-    bool hasMember(const std::string &name) {
-        return members.find(name) != members.end();
+    bool hasMember(const std::string &name, bool allowParentScope=false) {
+        if (members.find(name) != members.end())
+            return true;
+        else if (parent != nullptr && allowParentScope)
+            return parent->hasMember(name, allowParentScope);
+        else
+            return false;
     }
 
     virtual void addMember(Block *from, const std::string &name, Type *member)
